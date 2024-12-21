@@ -1,8 +1,9 @@
+import numpy as np
+import datetime
 from binance.client import Client
 from binance.spot import Spot
 from dotenv import load_dotenv
 import os
-import datetime
 
 # Constants for candlestick and pattern types
 KO = 0
@@ -58,28 +59,79 @@ def fetch_data():
     
     return values, tz
 
-# Function to write data to files
+# Fonction pour calculer les Bandes de Bollinger
+def calcul_bollinger(prix_cloture, periode=20, k=2):
+    """
+    Calcule les Bandes de Bollinger.
+
+    :param prix_cloture: Liste des prix de clôture.
+    :param periode: Période de la moyenne mobile simple (par défaut 20).
+    :param k: Facteur multiplicatif pour l'écart-type (par défaut 2).
+    :return: Liste des bandes supérieures, des moyennes mobiles et des bandes inférieures
+    """
+    bandes_superieures = []
+    bandes_inferieures = []
+    moyennes_mobiles = []
+
+    # Vérifier que nous avons suffisamment de données pour calculer la SMA et l'écart-type
+    if len(prix_cloture) < periode:
+        raise ValueError("Pas assez de données pour la période donnée")
+
+    # Calcul des Bandes de Bollinger pour chaque période
+    for i in range(periode, len(prix_cloture) + 1):
+        # Prendre la sous-liste des derniers prix de clôture sur la période
+        prix_sublist = prix_cloture[i - periode:i]
+
+        # Calcul de la SMA (moyenne mobile simple)
+        sma = np.mean(prix_sublist)
+
+        # Calcul de l'écart-type
+        ecart_type = np.std(prix_sublist)
+
+        # Calcul des bandes supérieure et inférieure
+        bande_superieure = sma + (k * ecart_type)
+        bande_inferieure = sma - (k * ecart_type)
+
+        bandes_superieures.append(bande_superieure)
+        bandes_inferieures.append(bande_inferieure)
+        moyennes_mobiles.append(sma)
+
+    return bandes_superieures, moyennes_mobiles, bandes_inferieures
+
+# Modifier la fonction write_data pour inclure les Bandes de Bollinger
 def write_data(values, tz):
-    # Open output files for writing
-    with open("data_crypto.txt", "w") as f, open("bearish_engulfing_bar.txt", "w") as f2, open("doji_candlestick.txt", "w") as f3:
+    # Extraction des prix de clôture
+    prix_cloture = [float(value[4]) for value in values]
+
+    # Calcul des Bandes de Bollinger
+    bandes_superieures, moyennes_mobiles, bandes_inferieures = calcul_bollinger(prix_cloture)
+
+    # Ouverture des fichiers pour écrire les données
+    with open("data_crypto.txt", "w") as f, open("bearish_engulfing_bar.txt", "w") as f2, open("doji_candlestick.txt", "w") as f3, open("bollinger.txt", "w") as f4:
         f.write("OpenTime,Open,High,Low,Close,Volume,CloseTime,QuoteAssetVolume,Trades,TakerBuyBase,TakerBuyQuote\n")
+        f4.write("OpenTime,Upper Bollinger Band,Middle Bollinger Band,Lower Bollinger Band\n")  # Titre du fichier Bollinger
         i = 0
         for value in values:
-            # Write Kline data to the file
+            # Extraction du temps de Kline
             kline_time = datetime.datetime.fromtimestamp(value[0] / 1000.0, tz) + datetime.timedelta(hours=1)
             f.write(f"{kline_time},")
             f.write(f"{value[1]},{value[2]},{value[3]},{value[4]},{value[5]},{value[6]},{value[7]},{value[8]},{value[9]},{value[10]}\n")
             
-            # Test for Doji Candlestick pattern
+            # Tester pour Doji Candlestick
             test_doji_candlestick = is_doji_candlestick(value)
             if test_doji_candlestick == DOJI_CANDLESTICK:
                 f3.write(f"{kline_time}\n")
             
-            # Test for Bearish Engulfing Bar pattern
+            # Tester pour Bearish Engulfing Bar
             if i < len(values) - 1:
                 test_bearish_engulfing_bar = is_bearish_engulfing_bar(value, values[i + 1])
                 if test_bearish_engulfing_bar == BEARISH_ENGULFING_BAR:
                     f2.write(f"{kline_time}\n")
+
+            # Écrire les Bandes de Bollinger dans le fichier
+            if i >= 19:  # On commence à partir du 20ème élément pour avoir assez de données pour la période 20
+                f4.write(f"{kline_time},{bandes_superieures[i-19]},{moyennes_mobiles[i-19]},{bandes_inferieures[i-19]}\n")
+
             i += 1
 
 # Main function to orchestrate the logic

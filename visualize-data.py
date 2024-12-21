@@ -22,6 +22,22 @@ def load_patterns():
 
     return bearish_engulfing_bar, doji_candlestick
 
+# Function to load Bollinger Bands data
+def load_bollinger_bands():
+    # Load Bollinger Bands data (Upper, Middle, Lower Bands)
+    bollinger_bands = {'time': [], 'upper': [], 'middle': [], 'lower': []}
+    with open("bollinger.txt", 'r') as file:
+        for line in file:
+            if line.startswith("OpenTime"):  # Skip header line
+                continue
+            data = line.strip().split(',')
+            bollinger_bands['time'].append(data[0])
+            bollinger_bands['upper'].append(float(data[1]))
+            bollinger_bands['middle'].append(float(data[2]))
+            bollinger_bands['lower'].append(float(data[3]))
+
+    return bollinger_bands
+
 # Function to create shapes (vertical lines) for the candlestick patterns
 def create_shapes(bearish_engulfing_bar, doji_candlestick):
     list_of_blue_shapes = []
@@ -61,7 +77,8 @@ def create_layout():
             id='toggle-lines',
             options=[
                 {'label': 'Bearish Engulfing Bar (Blue)', 'value': 'show_blue_lines'},
-                {'label': 'Doji Candlestick (Red)', 'value': 'show_red_lines'}
+                {'label': 'Doji Candlestick (Red)', 'value': 'show_red_lines'},
+                {'label': 'Bollinger Bands (Green, Orange, Red)', 'value': 'show_bollinger_bands'}  # Added checkbox for Bollinger Bands
             ],
             value=[],  # Default, no lines are shown
             inline=False  # Set to False to have options on separate lines
@@ -81,6 +98,9 @@ def main():
 
     # Load the candlestick patterns
     bearish_engulfing_bar, doji_candlestick = load_patterns()
+
+    # Load Bollinger Bands data
+    bollinger_bands = load_bollinger_bands()
 
     # Create shapes for the patterns
     list_of_blue_shapes, list_of_red_shapes = create_shapes(bearish_engulfing_bar, doji_candlestick)
@@ -114,6 +134,32 @@ def main():
             shapes_to_use.extend(list_of_blue_shapes)  # Add the blue lines for Bearish Engulfing Bars
         if 'show_red_lines' in lines_visibility:
             shapes_to_use.extend(list_of_red_shapes)  # Add the red lines for Doji Candlesticks
+
+        # Add the Bollinger Bands as lines if the checkbox is selected
+        if 'show_bollinger_bands' in lines_visibility:
+            fig.add_trace(go.Scatter(
+                x=bollinger_bands['time'],
+                y=bollinger_bands['upper'],
+                mode='lines',
+                name='Upper Bollinger Band',
+                line=dict(color='green', dash='dot')
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=bollinger_bands['time'],
+                y=bollinger_bands['middle'],
+                mode='lines',
+                name='Middle Bollinger Band',
+                line=dict(color='orange', dash='dash')
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=bollinger_bands['time'],
+                y=bollinger_bands['lower'],
+                mode='lines',
+                name='Lower Bollinger Band',
+                line=dict(color='red', dash='dot')
+            ))
 
         # Update the layout with the selected shapes
         fig.update_layout(
